@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 <div align="center">
 <h1>AI Native Browser Shell</h1>
 <p><strong>Electron + React + TypeScript + Vite + Tailwind CSS</strong> 的轻量浏览器壳 & 可扩展 AI Agent 面板。</p>
@@ -179,3 +180,6 @@ MIT
 
 ---
 如果你在调试或构建过程中遇到阻塞，欢迎继续提问，我可以直接给出针对性的修复补丁。享受构建 AI 原生浏览器的旅程！🚀
+=======
+AI native browser in progress.
+>>>>>>> 8a130f9 (Create README.md)
