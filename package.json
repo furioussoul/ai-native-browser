@@ -1,0 +1,43 @@
+{
+  "name": "electron-browser-demo",
+  "version": "0.1.0",
+  "description": "基于 Electron 的轻量 Chrome 套壳浏览器示例",
+  "main": "src/main.js",
+  "scripts": {
+    "start": "npm run build && electron .",
+    "build": "vite build",
+    "dev": "concurrently -k \"vite dev\" \"VITE_DEV_SERVER_URL=http://localhost:5173 electron .\"",
+    "dev:renderer": "vite dev",
+    "dev:electron": "VITE_DEV_SERVER_URL=http://localhost:5173 electron .",
+    "dev:debug": "concurrently -k \"vite dev\" \"VITE_DEV_SERVER_URL=http://localhost:5173 electron --inspect=9229 .\"",
+    "dev:debug-brk": "concurrently -k \"vite dev\" \"VITE_DEV_SERVER_URL=http://localhost:5173 electron --inspect-brk=9229 .\"",
+    "typecheck": "tsc --noEmit",
+    "lint": "echo 'No lint configured'"
+  },
+  "keywords": [
+    "electron",
+    "browser",
+    "chromium"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "@eko-ai/eko": "file:/Users/szj/IdeaProjects/eko/packages/eko-core"
+  },
+  "devDependencies": {
+    "@types/electron": "^1.6.10",
+    "@types/node": "^22.7.5",
+    "@types/react": "^18.3.5",
+    "@types/react-dom": "^18.3.0",
+    "@vitejs/plugin-react": "^4.3.1",
+    "autoprefixer": "^10.4.20",
+    "concurrently": "^8.2.2",
+    "electron": "^31.0.0",
+    "postcss": "^8.4.49",
+    "tailwindcss": "^3.4.14",
+    "typescript": "^5.6.3",
+    "vite": "^5.4.8"
+  }
+}
