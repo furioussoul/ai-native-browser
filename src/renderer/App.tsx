@@ -90,39 +90,6 @@ export default function App() {
         return null;
       } catch { return null; }
     };
-    window.__getActivePageClickableElements = async () => {
-      const wv = webviewRefs.current[activeTabId];
-      if (!wv) return null;
-      try {
-        const result = await wv.executeJavaScript(`(() => {
-          function getClickable(root) {
-            const clickableTags = ['a','button','input','textarea','select'];
-            const list = [];
-            let idx = 0;
-            const walker = document.createTreeWalker(root, NodeFilter.SHOW_ELEMENT);
-            while (walker.nextNode()) {
-              const el = walker.currentNode;
-              const tag = el.tagName ? el.tagName.toLowerCase() : '';
-              if (!tag) continue;
-              let clickable = clickableTags.includes(tag) || el.getAttribute('role') === 'button';
-              if (!clickable) continue;
-              const rect = el.getBoundingClientRect();
-              if (rect.width < 4 || rect.height < 4) continue;
-              const text = (el.innerText || el.value || '').trim().slice(0,120);
-              const html = el.outerHTML.slice(0,300);
-              list.push({ index: idx, tag, text, html, rect: { x: rect.x, y: rect.y, width: rect.width, height: rect.height } });
-              idx++;
-              if (idx >= 400) break;
-            }
-            return list;
-          }
-          const elements = getClickable(document.body || document.documentElement);
-          const element_str = elements.map(function(e){ return '['+ e.index +']:<' + e.tag + '>' + e.text + '</' + e.tag + '>'; }).join('\n');
-          return { element_str, elements };
-        })();`, true);
-        return result || null;
-      } catch { return null; }
-    };
   }, [tabs, activeTabId]);
   const agentMessagesRef = useRef<HTMLDivElement | null>(null);
   const [address, setAddress] = useState<string>(HOME_URL); // 显示当前激活 tab 的地址

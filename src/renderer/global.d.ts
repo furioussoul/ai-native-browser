@@ -18,17 +18,6 @@ declare global {
       html: string;
       text: string;
     } | null>;
-    /** 获取当前激活标签页可点击元素信息和 element_str */
-    __getActivePageClickableElements?: () => Promise<{
-      element_str: string;
-      elements: Array<{
-        index: number;
-        tag: string;
-        text: string;
-        html: string;
-        rect: { x: number; y: number; width: number; height: number };
-      }>;
-    } | null>;
   }
 
   namespace JSX {

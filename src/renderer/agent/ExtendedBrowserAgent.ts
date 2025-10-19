@@ -27,36 +27,6 @@ export default class ExtendedBrowserAgent extends BaseBrowserLabelsAgent {
     return { imageBase64: data, imageType: 'image/jpeg' };
   }
 
-  /**
-   * 重载 screenshot_and_html：使用激活标签页内的页面结构，而不是宿主页面。
-   * 由于 webview 内的 DOM 与宿主隔离，这里无法直接访问其元素索引标注逻辑。
-   * 暂时策略：在 webview 内采集简化的 clickable 元素（a/button/input/textarea/select），生成伪 HTML 列表；截图仍用宿主 canvas 截取 webview 区域可视内容。
-   */
-  protected async screenshot_and_html(agentContext: AgentContext): Promise<{ imageBase64: string; imageType: 'image/jpeg' | 'image/png'; pseudoHtml: string; }> {
-    const shot = await this.screenshot(agentContext);
-    // 优先使用宿主提供的可点击元素抽取
-    let clickable = await window.__getActivePageClickableElements?.();
-    let pseudoHtml = clickable?.element_str || '';
-    if (!pseudoHtml) {
-      // 回退到 snapshot 简单解析
-      const snapshot = await window.__getActivePageSnapshot?.();
-      if (snapshot?.html) {
-        try {
-          const interactiveTags = ['a', 'button', 'input', 'textarea', 'select'];
-          const regex = /<(a|button|input|textarea|select)(\b[^>]*)>(.*?)<\/\1>|<(input|select)(\b[^>]*)\/>/gis;
-          let idx = 0; const lines: string[] = []; const MAX = 400; let match: RegExpExecArray | null;
-          while ((match = regex.exec(snapshot.html)) && idx < MAX) {
-            const tag = (match[1] || match[4] || '').toLowerCase(); if (!interactiveTags.includes(tag)) continue;
-            const inner = (match[3] || '').trim().slice(0,120);
-            lines.push(`[${idx}]:<${tag}>${inner}</${tag}>`); idx++;
-          }
-          pseudoHtml = lines.join('\n');
-        } catch { pseudoHtml = ''; }
-      }
-    }
-    return { imageBase64: shot.imageBase64, imageType: shot.imageType, pseudoHtml };
-  }
-
   protected async navigate_to(agentContext: AgentContext, url: string): Promise<{ url: string; title?: string }> {
     const trimmed = url.trim();
     const isAbsolute = /^https?:\/\//i.test(trimmed);
