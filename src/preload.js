@@ -9,4 +9,5 @@ contextBridge.exposeInMainWorld('nativeAPI', {
     ipcRenderer.on('open-url-in-tab', (_event, url) => callback(url));
   },
   getAppInfo: () => ipcRenderer.invoke('app-info:get'),
+  getOpenAIConfig: () => ipcRenderer.invoke('openai:config')
 });

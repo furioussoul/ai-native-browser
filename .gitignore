@@ -4,3 +4,10 @@ out/
 dist/
 package-lock.json
 .history
+.env.development
+.env.development.local
+.env.production
+.env.production.local
+.env.local
+.env.*.local
+.env.test

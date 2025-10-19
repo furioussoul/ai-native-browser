@@ -10,4 +10,8 @@ export interface NativeAPI {
     chrome: string;
     node: string;
   }>;
+  getOpenAIConfig?: () => Promise<{
+    apiKey: string | null;
+    baseUrl: string | null;
+  }>;
 }
