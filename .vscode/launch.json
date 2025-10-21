@@ -24,7 +24,7 @@
             "windows": {
                 "runtimeExecutable": "${workspaceFolder}/node_modules/.bin/electron.cmd"
             },
-            "envFile": "${workspaceFolder}/.env.dev",
+            "envFile": "${workspaceFolder}/.env.development",
             "args": [
                 ".",
                 "--remote-debugging-port=9222"
