@@ -7,8 +7,8 @@
     "start": "NODE_ENV=production npm run build && NODE_ENV=production electron .",
     "build": "NODE_ENV=production vite build",
     "dev": "NODE_ENV=development concurrently -k \"vite dev\" \"electron .\"",
-    "dev:renderer": "NODE_ENV=development vite dev",
-    "dev:electron": "NODE_ENV=development electron .",
+    "dev:renderer": "set NODE_ENV=development && vite dev",
+    "dev:electron": "set NODE_ENV=development && electron .",
     "dev:debug": "NODE_ENV=development concurrently -k \"vite dev\" \"electron --inspect=9229 .\"",
     "dev:debug-brk": "NODE_ENV=development concurrently -k \"vite dev\" \"electron --inspect-brk=9229 .\"",
     "typecheck": "tsc --noEmit",
@@ -22,8 +22,7 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
-    "@eko-ai/eko": "file:/Users/szj/IdeaProjects/eko/packages/eko-core",
-    "@eko-ai/eko-web": "file:/Users/szj/IdeaProjects/eko/packages/eko-web",
+    "@eko-ai/eko": "^3.1.1",
     "html2canvas": "^1.4.1",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
@@ -40,6 +39,7 @@
     "dotenv": "^16.5.0",
     "electron": "^31.0.0",
     "postcss": "^8.4.49",
+    "prettier": "^3.6.2",
     "tailwindcss": "^3.4.14",
     "typescript": "^5.6.3",
     "vite": "^5.4.8"

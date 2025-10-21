@@ -18,6 +18,9 @@ declare global {
       html: string;
       text: string;
     } | null>;
+    __execScript?: (  fn: any,
+      args: ang[]) => Promise<any>;
+      
   }
 
   namespace JSX {
