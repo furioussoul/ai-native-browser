@@ -1,6 +1,7 @@
-const { app, BrowserWindow, Menu, ipcMain } = require('electron');
+const { app, BrowserWindow, Menu, ipcMain, webContents } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const { EventEmitter } = require('events');
 
 // -------- ENV LOADING (dotenv) --------
 // 支持优先顺序：.env.<mode>.local > .env.<mode> > .env.local(非生产) > .env
@@ -35,6 +36,157 @@ loadEnvFiles();
 const isMac = process.platform === 'darwin';
 
 let mainWindow;
+const globalEmitter = new EventEmitter();
+
+function webContentsCreated(remote, emitter) {
+  return (_event, contents) => {
+    if (remote?.enable && typeof remote.enable === 'function') {
+      try {
+        remote.enable(contents);
+      } catch (error) {
+        console.warn('[remote] enable failed:', error.message);
+      }
+    }
+
+    if (!contents || typeof contents.on !== 'function') {
+      return;
+    }
+
+    const type = typeof contents.getType === 'function' ? contents.getType() : undefined;
+    const shouldIntercept = type === 'window' || type === 'webview';
+    if (!shouldIntercept) {
+      return;
+    }
+
+    const resolveRecipientWindow = () => {
+      const candidateSet = new Set();
+
+      const hostContents = contents.hostWebContents || contents.getOpener?.();
+      if (hostContents) {
+        const ownerFromHost = BrowserWindow.fromWebContents(hostContents);
+        if (ownerFromHost && !ownerFromHost.isDestroyed()) {
+          candidateSet.add(ownerFromHost);
+        }
+      }
+
+      const ownerFromSelf = BrowserWindow.fromWebContents(contents);
+      if (ownerFromSelf && !ownerFromSelf.isDestroyed()) {
+        candidateSet.add(ownerFromSelf);
+      }
+
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        candidateSet.add(mainWindow);
+      }
+
+      BrowserWindow.getAllWindows()
+        .filter(win => win && !win.isDestroyed())
+        .forEach(win => candidateSet.add(win));
+
+      const [first] = candidateSet;
+      return first ?? null;
+    };
+
+    const forwardToTab = ({ url, frameName, disposition, options }) => {
+      if (!url) {
+        return false;
+      }
+
+      const recipientWindow = resolveRecipientWindow();
+      if (recipientWindow) {
+        recipientWindow.webContents.send('open-url-in-tab', {
+          url,
+          frameName,
+          disposition,
+          options
+        });
+      }
+
+      emitter?.emit?.('webview:new-window', {
+        url,
+        frameName,
+        disposition,
+        options,
+        windowId: recipientWindow ? recipientWindow.id : null
+      });
+
+      return true;
+    };
+
+    const shouldHandleDisposition = disposition => {
+      return (
+        disposition === 'foreground-tab' ||
+        disposition === 'background-tab' ||
+        disposition === 'new-window' ||
+        disposition === 'default'
+      );
+    };
+
+    if (typeof contents.setWindowOpenHandler === 'function') {
+      contents.setWindowOpenHandler(details => {
+        if (!shouldHandleDisposition(details?.disposition)) {
+          return { action: 'allow' };
+        }
+
+        const handled = forwardToTab({
+          url: details?.url,
+          frameName: details?.frameName,
+          disposition: details?.disposition,
+          options: details?.features
+        });
+
+        return handled ? { action: 'deny' } : { action: 'allow' };
+      });
+    } else {
+      contents.on('new-window', (event, url, frameName, disposition, options) => {
+        if (!shouldHandleDisposition(disposition) || !url) {
+          return;
+        }
+
+        const handled = forwardToTab({ url, frameName, disposition, options });
+        if (handled) {
+          event.preventDefault();
+        }
+      });
+    }
+  };
+}
+
+app.on('web-contents-created', webContentsCreated(null, globalEmitter));
+
+// 响应截屏请求
+ipcMain.handle('capture-active-tab-screenshot', async (event, webContentsId) => {
+  if (!webContentsId) {
+    console.error('Screenshot request without webContentsId');
+    return null;
+  }
+
+  const webviewContent = webContents.fromId(webContentsId);
+
+  if (webviewContent) {
+    try {
+      const image = await webviewContent.capturePage();
+      // const imageBuffer = image.toPNG();
+      // // 确保 images 目录存在
+      // const imagesDir = path.join(app.getAppPath(), 'images');
+      // if (!fs.existsSync(imagesDir)) {
+      //   fs.mkdirSync(imagesDir, { recursive: true });
+      // }
+      // // 生成文件名并保存
+      // const fileName = `screenshot-${Date.now()}.png`;
+      // const filePath = path.join(imagesDir, fileName);
+      // fs.writeFileSync(filePath, imageBuffer);
+      
+      // console.log('Screenshot saved to:', filePath);
+      // // 返回图片的 data URL，保持原接口兼容性
+      return image.toDataURL();
+    } catch (e) {
+      console.error('Failed to capture or save page:', e);
+      return null;
+    }
+  }
+  return null;
+});
+
 // ---------------- Local Proxy for API (Production-friendly) ----------------
 // 将渲染层对 /v1/* 的调用转发到后端，规避浏览器 CORS，隐藏真实 API Key。
 let localProxyPort = null;

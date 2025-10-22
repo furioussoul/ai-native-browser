@@ -1,3 +1,5 @@
+import { WorkflowNode } from "@eko-ai/eko";
+
 export type LanguageModelV2FinishReason = 'stop' | 'length' | 'tool' | 'error' | 'other';
 
 export interface WorkflowStep {
@@ -10,15 +12,22 @@ export interface Workflow {
   id: string;
   name: string;
   description?: string;
-  steps?: WorkflowStep[];
+  agents: WorkflowAgent[];
+  // 可选：流式更新时可能包含的步骤数组（兼容上游 SDK 不同版本）
+  steps?: any[];
 }
 
-export interface WorkflowAgent {
+export type WorkflowAgent = {
   id: string;
   name: string;
-  description?: string;
-  avatarUrl?: string;
-}
+  task: string;
+  dependsOn: string[];
+  nodes: WorkflowNode[];
+  parallel?: boolean;
+  status: "init" | "running" | "done" | "error";
+  xml: string; // <agent name="xxx">...</agent>
+};
+
 
 export interface ToolResult {
   summary?: string;

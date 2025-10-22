@@ -1,6 +1,12 @@
 import { AgentContext, BaseBrowserLabelsAgent } from "@eko-ai/eko";
 import html2canvas from "html2canvas";
 
+declare global {
+    interface Window {
+        __captureActiveTabScreenshot?: () => Promise<string | null>;
+    }
+}
+
 /**
  * 自定义 BrowserAgent：基于原实现（@eko-ai/eko-web/src/browser.ts）拷贝必要方法，
  * 修改 navigate_to 使其支持跨站，通过触发自定义事件给宿主。
@@ -9,22 +15,30 @@ export default class ExtendedBrowserAgent extends BaseBrowserLabelsAgent {
     protected async screenshot(
         agentContext: AgentContext,
     ): Promise<{ imageBase64: string; imageType: "image/jpeg" | "image/png" }> {
-        const [width, height] = this.size();
-        const scrollX = window.scrollX || window.pageXOffset;
-        const scrollY = window.scrollY || window.pageYOffset;
-        const canvas = await html2canvas(document.documentElement || document.body, {
-            width,
-            height,
-            windowWidth: width,
-            windowHeight: height,
-            x: scrollX,
-            y: scrollY,
-            scrollX: -scrollX,
-            scrollY: -scrollY,
-            useCORS: true,
-            foreignObjectRendering: true,
-        });
-        const dataUrl = canvas.toDataURL("image/jpeg");
+        // @ts-ignore
+        const dataUrl = await window.__captureActiveTabScreenshot?.();
+        if (!dataUrl) {
+            // 兜底：仍然使用 html2canvas（但会包含右侧 UI）
+            const [width, height] = this.size();
+            const scrollX = window.scrollX || window.pageXOffset;
+            const scrollY = window.scrollY || window.pageYOffset;
+            const canvas = await html2canvas(document.documentElement || document.body, {
+                width,
+                height,
+                windowWidth: width,
+                windowHeight: height,
+                x: scrollX,
+                y: scrollY,
+                scrollX: -scrollX,
+                scrollY: -scrollY,
+                useCORS: true,
+                foreignObjectRendering: true,
+            });
+            const fallbackDataUrl = canvas.toDataURL("image/jpeg");
+            const data = fallbackDataUrl.substring(fallbackDataUrl.indexOf("base64,") + 7);
+            return { imageBase64: data, imageType: "image/jpeg" };
+        }
+
         const data = dataUrl.substring(dataUrl.indexOf("base64,") + 7);
         return { imageBase64: data, imageType: "image/jpeg" };
     }

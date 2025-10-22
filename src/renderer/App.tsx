@@ -71,6 +71,23 @@ export default function App() {
         window.__activeTabId = activeTabId;
         const active = tabs.find((t) => t.tabId === activeTabId);
         if (active) window.__activeTabUrl = active.url;
+
+        // 挂载截图函数
+        window.__captureActiveTabScreenshot = async () => {
+            const activeWebview = webviewRefs.current[activeTabId];
+            if (activeWebview) {
+                try {
+                    const wcId = activeWebview.getWebContentsId();
+                    // @ts-ignore
+                    return await window.nativeAPI?.captureActiveTabScreenshot(wcId);
+                } catch (e) {
+                    console.error("Failed to get webContentsId for screenshot", e);
+                    return null;
+                }
+            }
+            return null;
+        };
+
         // 提供快照函数：到激活 webview 内部执行脚本收集真实页面内容
         window.__getActivePageSnapshot = async () => {
             const wv = webviewRefs.current[activeTabId];
@@ -263,12 +280,26 @@ export default function App() {
             return;
         }
 
-        nativeAPI.onOpenUrlInTab((url: string) => {
-            // 默认在新标签打开
-            openUrlInNewTab(url);
+        nativeAPI.onOpenUrlInTab((raw: any) => {
+            const payload: { url: string; disposition?: string } = typeof raw === 'string' ? { url: raw } : raw;
+            const { url, disposition } = payload;
+            // 根据 disposition 决定是否激活：foreground-tab/new-window 激活，background-tab 不激活
+            const shouldActivate = !disposition || disposition === 'foreground-tab' || disposition === 'new-window' || disposition === 'default';
+            if (shouldActivate) {
+                openUrlInNewTab(url);
+            } else {
+                // 后台：先添加但不切换 activeTabId
+                const finalUrl = normaliseUrl(url);
+                const newId = nextTabIdRef.current++;
+                setTabs((prev) => [...prev, { tabId: newId, url: finalUrl, title: '新标签页', loading: true }]);
+                setTimeout(() => {
+                    const wv = webviewRefs.current[newId];
+                    wv?.loadURL(finalUrl);
+                }, 0);
+            }
             nativeAPI.focusWindow?.();
         });
-    }, [loadUrl]);
+    }, [openUrlInNewTab]);
 
     useEffect(() => {
         const nativeAPI = window.nativeAPI;
@@ -388,19 +419,6 @@ export default function App() {
             // 分隔上一轮任务，插入一条分隔说明（系统样式：使用特殊前缀，避免与普通回复混淆）
             setConversation((prev) => [
                 ...prev,
-                {
-                    id: createMessageId(),
-                    role: "agent",
-                    payload: {
-                        taskId,
-                        agentName: "AI Navigator",
-                        type: "text",
-                        streamId: `separator-${taskId}`,
-                        streamDone: true,
-                        text: "—— 新任务开始 ——",
-                    } as StreamCallbackMessage,
-                    timestamp: Date.now(),
-                },
             ]);
 
             // 切换到真实的 Agent streaming
@@ -743,6 +761,14 @@ export default function App() {
 
     const agentPanelClasses = isAgentCollapsed ? `${agentPanelBaseClasses} w-16 min-w-0` : agentPanelBaseClasses;
 
+    // 安全获取工作流节点显示标签：兼容不同 SDK 结构，防止访问不存在的 text 属性导致 TS 报错
+    const getWorkflowNodeLabel = useCallback((node: any): string => {
+        if (!node) return "?";
+        // 优先级：text -> name -> title -> id -> type
+        const raw = node.text ?? node.name ?? node.title ?? node.id ?? node.type ?? "?";
+        return raw
+    }, []);
+
     return (
         <div className="flex h-full flex-col bg-surface">
             <header className="flex items-center justify-between gap-3 border-b border-white/10 bg-gradient-to-r from-[#1a1c2c] to-[#13141f] px-3 py-2">
@@ -869,7 +895,7 @@ export default function App() {
                                 className={`absolute inset-0 h-full w-full rounded-lg border border-white/5 bg-black/40 ${t.tabId === activeTabId ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"}`}
                                 data-active={t.tabId === activeTabId ? "true" : "false"}
                                 src={t.url}
-                                allowpopups
+                                allowpopups="true"
                                 disableblinkfeatures="AutomationControlled"
                             />
                         ))}
@@ -936,33 +962,18 @@ export default function App() {
                                                 </div>
                                             );
                                         case "text":
-                                            return (
+                                            return  payload.text && payload.streamDone?(
                                                 <div
                                                     key={entry.id}
                                                     className="flex flex-col gap-1 text-sm leading-relaxed"
                                                 >
-                                                    <span className="text-xs font-medium text-white/60">
-                                                        Agent {payload.streamDone ? "回复完成" : "正在回复…"}
-                                                    </span>
                                                     <p className="w-fit max-w-full rounded-lg bg-white/10 px-3 py-2 text-white">
                                                         {payload.text}
                                                     </p>
                                                 </div>
-                                            );
-                                        case "tool_streaming":
-                                            return (
-                                                <div
-                                                    key={entry.id}
-                                                    className="flex flex-col gap-1 text-sm leading-relaxed"
-                                                >
-                                                    <span className="text-xs font-medium text-amber-300/90">
-                                                        调用工具 {payload.toolName}
-                                                    </span>
-                                                    <pre className="w-full max-w-full overflow-auto rounded-lg bg-black/40 px-3 py-2 text-xs text-amber-100/90">
-                                                        {payload.paramsText}
-                                                    </pre>
-                                                </div>
-                                            );
+                                            )  : null;
+                        
+            
                                         case "tool_running":
                                             return (
                                                 <div
@@ -1006,36 +1017,32 @@ export default function App() {
                                                 </div>
                                             );
                                         case "workflow":
-                                            return (
+                                            return payload.streamDone ? (
                                                 <div
                                                     key={entry.id}
                                                     className="flex flex-col gap-2 rounded-lg bg-white/5 px-3 py-2 text-sm text-white/80"
                                                 >
                                                     <div className="text-xs font-medium text-white/60">
-                                                        工作流：{payload.workflow.name}
+                                                        {payload.workflow.name}
                                                     </div>
-                                                    {payload.workflow.steps?.map((step) => (
+                                                    {payload.workflow.agents?.map((agent) => (
                                                         <div
-                                                            key={step.id}
+                                                            key={agent.name}
                                                             className="flex items-start gap-2 text-xs text-white/70"
                                                         >
-                                                            <span className="mt-1 inline-flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full bg-white/10 text-[10px]">
-                                                                {step.title[0]?.toUpperCase() ?? "•"}
-                                                            </span>
-                                                            <div>
-                                                                <div className="font-semibold text-white/80">
-                                                                    {step.title}
-                                                                </div>
-                                                                {step.description && (
-                                                                    <div className="text-white/60">
-                                                                        {step.description}
-                                                                    </div>
-                                                                )}
-                                                            </div>
+                                                           {agent.nodes?.map((node, idx) => (
+                                                                <p
+                                                                    key={idx}
+                                                                    className="mt-1 inline-flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full bg-white/10 text-[10px]"
+                                                                    title={(node as any).name || (node as any).title || (node as any).id}
+                                                                >
+                                                                    {getWorkflowNodeLabel(node)}
+                                                                </p>
+                                                            ))}
                                                         </div>
                                                     ))}
                                                 </div>
-                                            );
+                                            ): null;
                                         case "agent_start":
                                             return (
                                                 <div
@@ -1049,11 +1056,6 @@ export default function App() {
                                                         <div className="text-sm text-white/80">
                                                             {payload.agentNode.name}
                                                         </div>
-                                                        {payload.agentNode.description && (
-                                                            <div className="text-xs text-white/60">
-                                                                {payload.agentNode.description}
-                                                            </div>
-                                                        )}
                                                     </div>
                                                 </div>
                                             );
@@ -1091,8 +1093,6 @@ export default function App() {
                                                     key={entry.id}
                                                     className="flex flex-col gap-1 text-xs leading-relaxed text-white/50"
                                                 >
-                                                    <span className="font-medium text-white/60">会话结束</span>
-                                                    <span>原因：{payload.finishReason}</span>
                                                     <span>
                                                         Token 用量：prompt {payload.usage.promptTokens} · completion{" "}
                                                         {payload.usage.completionTokens} · total

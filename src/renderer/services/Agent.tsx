@@ -33,11 +33,11 @@ export function realAgentRun(options: RealAgentOptions): () => void {
     const llms: LLMs = {
         default: {
             provider: 'openai-compatible',
-            model: modelName || 'gpt-5-mini',
+            model: modelName || 'gpt-4o',
             apiKey: openaiApiKey,
             config: {
                 baseURL: openaiBaseURL,
-                max_completion_tokens: 102400,
+                // max_completion_tokens: 102400,
                 temperature: 1.0
             }
         }
@@ -48,10 +48,10 @@ export function realAgentRun(options: RealAgentOptions): () => void {
     const callback = {
         onMessage: async (msg: EkoStreamMessage) => {
             // 某些消息类型没有 streamDone 字段，做可选链并断言
-            const anyMsg: any = msg as any;
-            if (anyMsg?.streamDone === false || msg.type === 'tool_streaming') {
-                return; // 仍在流式中，等待完成再输出
-            }
+            // const anyMsg: any = msg as any;
+            // if (anyMsg?.streamDone === false || msg.type === 'tool_streaming') {
+            //     return; // 仍在流式中，等待完成再输出
+            // }
             console.log('Agent Message:', msg);
             onMessage(msg);
         }
